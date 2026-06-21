@@ -1,11 +1,10 @@
 'use client';
 import { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('products');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState('FD-DB-400');
+  const [expandedProduct, setExpandedProduct] = useState(null);
   const [laborPerUnit, setLaborPerUnit] = useState(15);
   const [overheadPerUnit, setOverheadPerUnit] = useState(10);
   const [retailPrices, setRetailPrices] = useState({
@@ -39,52 +38,52 @@ export default function Home() {
   };
 
   const ProductCard = ({ id, product }) => {
-    const [expanded, setExpanded] = useState(false);
+    const expanded = expandedProduct === id;
     const costs = calculateTotalCost(product.cost);
     const retail = retailPrices[id] || 0;
     const profit = retail - costs.total;
     const margin = retail > 0 ? ((profit / retail) * 100).toFixed(1) : 0;
-    const marginColor = margin >= 50 ? 'text-green-600' : margin >= 30 ? 'text-yellow-600' : 'text-red-600';
+    const marginColor = margin >= 50 ? '#10b981' : margin >= 30 ? '#eab308' : '#ef4444';
 
     return (
-      <div className="border rounded-lg p-4 mb-3 bg-white hover:shadow-md transition">
-        <div className="flex justify-between items-start cursor-pointer" onClick={() => setExpanded(!expanded)}>
-          <div className="flex-1">
-            <h3 className="font-semibold text-gray-800">{product.name}</h3>
-            <p className="text-sm text-gray-500">{product.category} • {product.type}</p>
+      <div style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '16px', marginBottom: '12px', backgroundColor: '#fff', cursor: 'pointer' }} onClick={() => setExpandedProduct(expanded ? null : id)}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ flex: 1 }}>
+            <h3 style={{ fontWeight: '600', fontSize: '16px', margin: '0 0 4px 0' }}>{product.name}</h3>
+            <p style={{ fontSize: '14px', color: '#666', margin: 0 }}>{product.category} • {product.type}</p>
           </div>
-          <div className="text-right ml-4">
-            <div className="font-bold text-lg text-blue-600">${costs.total.toFixed(2)}</div>
-            <div className={`text-sm font-semibold ${marginColor}`}>
-              {margin}% margin
-            </div>
+          <div style={{ textAlign: 'right', marginLeft: '16px' }}>
+            <div style={{ fontWeight: 'bold', fontSize: '18px', color: '#2563eb' }}>${costs.total.toFixed(2)}</div>
+            <div style={{ fontSize: '13px', fontWeight: '600', color: marginColor }}>{margin}% margin</div>
           </div>
-          {expanded ? <ChevronUp className="w-5 h-5 ml-2 text-gray-400" /> : <ChevronDown className="w-5 h-5 ml-2 text-gray-400" />}
+          <div style={{ marginLeft: '8px', fontSize: '20px', color: '#999' }}>
+            {expanded ? '▼' : '▶'}
+          </div>
         </div>
 
         {expanded && (
-          <div className="mt-4 space-y-2 border-t pt-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>Raw Materials: <span className="font-semibold">${costs.rawMaterial.toFixed(2)}</span></div>
-              <div>Variable: <span className="font-semibold">${costs.variableCosts.toFixed(2)}</span></div>
-              <div>Labor: <span className="font-semibold">${costs.labor.toFixed(2)}</span></div>
-              <div>Overhead: <span className="font-semibold">${costs.overhead.toFixed(2)}</span></div>
-              <div className="col-span-2 border-t pt-2">
-                Subtotal: <span className="font-semibold">${costs.subtotal.toFixed(2)}</span>
+          <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #ddd' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '14px' }}>
+              <div>Raw Materials: <span style={{ fontWeight: '600' }}>${costs.rawMaterial.toFixed(2)}</span></div>
+              <div>Variable: <span style={{ fontWeight: '600' }}>${costs.variableCosts.toFixed(2)}</span></div>
+              <div>Labor: <span style={{ fontWeight: '600' }}>${costs.labor.toFixed(2)}</span></div>
+              <div>Overhead: <span style={{ fontWeight: '600' }}>${costs.overhead.toFixed(2)}</span></div>
+              <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #ddd', paddingTop: '8px' }}>
+                Subtotal: <span style={{ fontWeight: '600' }}>${costs.subtotal.toFixed(2)}</span>
               </div>
-              <div className="col-span-2">
-                Buffer (5%): <span className="font-semibold">${costs.buffer.toFixed(2)}</span>
+              <div style={{ gridColumn: '1 / -1' }}>
+                Buffer (5%): <span style={{ fontWeight: '600' }}>${costs.buffer.toFixed(2)}</span>
               </div>
-              <div className="col-span-2 border-t pt-2 text-lg font-bold text-blue-600">
+              <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #ddd', paddingTop: '8px', fontSize: '16px', fontWeight: 'bold', color: '#2563eb' }}>
                 Total Cost: ${costs.total.toFixed(2)}
               </div>
             </div>
             {retail > 0 && (
-              <div className="mt-3 p-2 bg-green-50 rounded border border-green-200">
-                <p className="text-sm">
-                  <span className="font-semibold">Retail:</span> ${retail} | 
-                  <span className="font-semibold"> Profit:</span> ${profit.toFixed(2)} | 
-                  <span className={`font-semibold ${marginColor}`}> {margin}%</span>
+              <div style={{ marginTop: '12px', padding: '8px', backgroundColor: '#dcfce7', borderRadius: '4px', border: '1px solid #86efac' }}>
+                <p style={{ fontSize: '13px', margin: 0 }}>
+                  <span style={{ fontWeight: '600' }}>Retail:</span> ${retail} | 
+                  <span style={{ fontWeight: '600' }}> Profit:</span> ${profit.toFixed(2)} | 
+                  <span style={{ fontWeight: '600', color: marginColor }}> {margin}%</span>
                 </p>
               </div>
             )}
@@ -100,94 +99,94 @@ export default function Home() {
   );
 
   return (
-    <div className="w-full min-h-screen bg-gray-50 flex flex-col">
+    <div style={{ width: '100%', minHeight: '100vh', backgroundColor: '#f9fafb', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div className="bg-blue-600 text-white p-4 shadow-lg">
-        <h1 className="text-2xl font-bold">🧮 Formula Raw Production Costing</h1>
-        <p className="text-blue-100 text-sm">Professional batch costing calculator</p>
+      <div style={{ backgroundColor: '#2563eb', color: 'white', padding: '16px', boxShadow: '0 10px 15px rgba(0,0,0,0.1)' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 4px 0' }}>🧮 Formula Raw Production Costing</h1>
+        <p style={{ fontSize: '13px', color: '#93c5fd', margin: 0 }}>Professional batch costing calculator</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b bg-white">
+      <div style={{ display: 'flex', borderBottom: '1px solid #ddd', backgroundColor: '#fff' }}>
         <button
           onClick={() => setActiveTab('products')}
-          className={`flex-1 py-3 px-4 font-semibold text-sm ${activeTab === 'products' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+          style={{ flex: 1, padding: '12px 16px', fontWeight: '600', fontSize: '13px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer', borderBottom: activeTab === 'products' ? '2px solid #2563eb' : 'none', color: activeTab === 'products' ? '#2563eb' : '#666' }}
         >
           Products ({Object.keys(products).length})
         </button>
         <button
           onClick={() => setActiveTab('settings')}
-          className={`flex-1 py-3 px-4 font-semibold text-sm ${activeTab === 'settings' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+          style={{ flex: 1, padding: '12px 16px', fontWeight: '600', fontSize: '13px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer', borderBottom: activeTab === 'settings' ? '2px solid #2563eb' : 'none', color: activeTab === 'settings' ? '#2563eb' : '#666' }}
         >
           Settings
         </button>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
         {activeTab === 'products' && (
           <div>
-            <div className="mb-4">
+            <div style={{ marginBottom: '16px' }}>
               <input
                 type="text"
                 placeholder="Search products..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                style={{ width: '100%', padding: '8px 16px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
               />
             </div>
-            <div className="max-w-2xl space-y-2">
+            <div style={{ maxWidth: '800px' }}>
               {filteredProducts.length > 0 ? (
                 filteredProducts.map(([id, product]) => (
                   <ProductCard key={id} id={id} product={product} />
                 ))
               ) : (
-                <p className="text-gray-500">No products found</p>
+                <p style={{ color: '#999' }}>No products found</p>
               )}
             </div>
           </div>
         )}
 
         {activeTab === 'settings' && (
-          <div className="max-w-2xl">
-            <h2 className="text-xl font-bold mb-6">Cost Settings</h2>
+          <div style={{ maxWidth: '800px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '24px' }}>Cost Settings</h2>
             
-            <div className="bg-white p-6 rounded-lg border mb-4">
-              <label className="block text-sm font-semibold mb-2">Labor Cost per Unit ($)</label>
+            <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>Labor Cost per Unit ($)</label>
               <input
                 type="number"
                 value={laborPerUnit}
                 onChange={(e) => setLaborPerUnit(parseFloat(e.target.value) || 0)}
                 step="0.01"
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
               />
-              <p className="text-xs text-gray-500 mt-1">Applied to all products</p>
+              <p style={{ fontSize: '12px', color: '#999', marginTop: '4px', margin: '4px 0 0 0' }}>Applied to all products</p>
             </div>
 
-            <div className="bg-white p-6 rounded-lg border mb-4">
-              <label className="block text-sm font-semibold mb-2">Overhead Cost per Unit ($)</label>
+            <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>Overhead Cost per Unit ($)</label>
               <input
                 type="number"
                 value={overheadPerUnit}
                 onChange={(e) => setOverheadPerUnit(parseFloat(e.target.value) || 0)}
                 step="0.01"
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
               />
-              <p className="text-xs text-gray-500 mt-1">Applied to all products</p>
+              <p style={{ fontSize: '12px', color: '#999', marginTop: '4px', margin: '4px 0 0 0' }}>Applied to all products</p>
             </div>
 
-            <div className="bg-white p-6 rounded-lg border">
-              <h3 className="font-semibold mb-4">Retail Prices</h3>
-              <div className="space-y-3">
+            <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '8px', border: '1px solid #ddd' }}>
+              <h3 style={{ fontWeight: '600', marginBottom: '16px' }}>Retail Prices</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {Object.entries(products).map(([id, product]) => (
                   <div key={id}>
-                    <label className="block text-sm font-semibold mb-1">{product.name}</label>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>{product.name}</label>
                     <input
                       type="number"
                       value={retailPrices[id] || 0}
                       onChange={(e) => setRetailPrices({ ...retailPrices, [id]: parseFloat(e.target.value) || 0 })}
                       step="0.01"
-                      className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
                     />
                   </div>
                 ))}
