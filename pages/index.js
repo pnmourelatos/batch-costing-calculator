@@ -160,8 +160,8 @@ export default function Home() {
     };
 
     const results = calculateBatchResults();
-    const retailPrice = parseFloat(localBatch.retailPrice) || retailPrices[productId] || 0;
-    const wholesalePrice = parseFloat(localBatch.wholesalePrice) || wholesalePrices[productId] || 0;
+    const retailPrice = localBatch.retailPrice !== undefined ? parseFloat(localBatch.retailPrice) : (retailPrices[productId] || 0);
+    const wholesalePrice = localBatch.wholesalePrice !== undefined ? parseFloat(localBatch.wholesalePrice) : (wholesalePrices[productId] || 0);
     const retailMargin = retailPrice > 0 ? (((retailPrice - results.costPerUnit) / retailPrice) * 100).toFixed(1) : '0';
     const wholesaleMargin = wholesalePrice > 0 ? (((wholesalePrice - results.costPerUnit) / wholesalePrice) * 100).toFixed(1) : '0';
     const retailColor = retailMargin >= 30 ? '#10b981' : retailMargin >= 15 ? '#eab308' : '#ef4444';
@@ -228,11 +228,11 @@ export default function Home() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <label style={{ display: 'block', fontWeight: '600', marginBottom: '4px', fontSize: '12px' }}>Retail Price ($)</label>
-                <input type="number" value={localBatch.retailPrice || retailPrices[productId] || 0} onChange={(e) => setLocalBatch({ ...localBatch, retailPrice: e.target.value })} step="0.01" style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }} />
+                <input type="number" value={localBatch.retailPrice !== undefined ? localBatch.retailPrice : (retailPrices[productId] || 0)} onChange={(e) => setLocalBatch({ ...localBatch, retailPrice: e.target.value })} step="0.01" style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }} />
               </div>
               <div>
                 <label style={{ display: 'block', fontWeight: '600', marginBottom: '4px', fontSize: '12px' }}>Wholesale Price ($)</label>
-                <input type="number" value={localBatch.wholesalePrice || wholesalePrices[productId] || 0} onChange={(e) => setLocalBatch({ ...localBatch, wholesalePrice: e.target.value })} step="0.01" style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }} />
+                <input type="number" value={localBatch.wholesalePrice !== undefined ? localBatch.wholesalePrice : (wholesalePrices[productId] || 0)} onChange={(e) => setLocalBatch({ ...localBatch, wholesalePrice: e.target.value })} step="0.01" style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }} />
               </div>
             </div>
           </div>
