@@ -12,7 +12,7 @@ export default function Home() {
   const [ingredientCosts, setIngredientCosts] = useState({
     'Beef': 3.50, 'Lamb': 4.20, 'Chicken': 2.80, 'Turkey': 3.10, 'Kangaroo': 5.50,
     'Salmon': 6.20, 'Rabbit': 5.80, 'Duck': 4.90, 'Fish Oil': 2.00, 'Organs': 1.50,
-    'Mixed Meats': 3.80, 'Vegetables': 0.80, 'Packaging': 0.50, 'Supplements': 8.00, 'Carrier': 1.20,
+    'Mixed Meats': 3.80, 'Vegetables': 0.80, 'Supplements': 8.00, 'Carrier': 1.20,
   });
   const [batchData, setBatchData] = useState({});
   const [retailPrices, setRetailPrices] = useState({
@@ -31,6 +31,23 @@ export default function Home() {
     'FM-CC-2lb': 41.99, 'FM-CC-5lb': 89.99, 'FM-CT-2lb': 42.99, 'FM-CT-5lb': 91.99,
     'TR-BEEF-100': 12.99, 'TR-LAMB-100': 14.99, 'TR-DUCK-100': 16.99,
     'SUP-JT-60': 34.99, 'SUP-JT-150': 74.99,
+  });
+  const [wholesalePrices, setWholesalePrices] = useState({
+    'FD-DB-400': 24.99, 'FD-DB-850': 44.99, 'FD-DL-400': 29.99, 'FD-DL-850': 49.99,
+    'FD-DC-400': 26.99, 'FD-DC-850': 46.99, 'FD-DT-400': 27.99, 'FD-DT-850': 47.99,
+    'FD-DK-400': 34.99, 'FD-DK-850': 59.99, 'FD-DS-400': 36.99, 'FD-DS-850': 64.99,
+    'FD-DR-400': 39.99, 'FD-DR-850': 69.99, 'FD-DMM-400': 31.99, 'FD-DMM-850': 54.99,
+    'FD-CB-200': 16.99, 'FD-CB-400': 24.99, 'FD-CL-200': 18.99, 'FD-CL-400': 29.99,
+    'FD-CC-200': 18.49, 'FD-CC-400': 26.99, 'FD-CT-200': 18.99, 'FD-CT-400': 27.99,
+    'FD-CK-200': 21.99, 'FD-CK-400': 34.99, 'FD-CS-200': 23.99, 'FD-CS-400': 36.99,
+    'FD-CR-200': 24.49, 'FD-CR-400': 39.99, 'FD-CMM-200': 20.49, 'FD-CMM-400': 31.99,
+    'FM-DB-5lb': 59.99, 'FM-DB-10lb': 104.99, 'FM-DL-5lb': 64.99, 'FM-DL-10lb': 119.99,
+    'FM-DC-5lb': 62.99, 'FM-DC-10lb': 112.99, 'FM-DT-5lb': 64.99, 'FM-DT-10lb': 114.99,
+    'FM-DK-5lb': 76.99, 'FM-DK-10lb': 139.99,
+    'FM-CB-2lb': 27.99, 'FM-CB-5lb': 59.99, 'FM-CL-2lb': 30.99, 'FM-CL-5lb': 64.99,
+    'FM-CC-2lb': 29.49, 'FM-CC-5lb': 62.99, 'FM-CT-2lb': 29.99, 'FM-CT-5lb': 64.99,
+    'TR-BEEF-100': 8.99, 'TR-LAMB-100': 9.99, 'TR-DUCK-100': 11.99,
+    'SUP-JT-60': 23.99, 'SUP-JT-150': 51.99,
   });
 
   const products = {
@@ -91,12 +108,6 @@ export default function Home() {
     'SUP-JT-150': { name: 'Joint Support', category: 'Treats & Supplements', size: '150g', cost: 28.00, formulation: { 'Supplements': 0.80, 'Carrier': 0.15, 'Packaging': 0.05 } },
   };
 
-  const getSizeInGrams = (size) => {
-    if (size.includes('g')) return parseFloat(size);
-    if (size.includes('lb')) return parseFloat(size) * 453.592;
-    return 400;
-  };
-
   const calculateTotalCost = (productCost) => {
     const variableCosts = 0.50;
     const overheadCost = overheadPerUnit;
@@ -122,12 +133,12 @@ export default function Home() {
   const BatchModal = ({ productId, product }) => {
     const batch = batchData[productId] || {};
     const [localBatch, setLocalBatch] = useState(batch);
-    const sizeGrams = getSizeInGrams(product.size);
 
     const calculateBatchResults = () => {
-      const totalKg = parseFloat(localBatch.totalKg) || 0;
+      const unitsToMake = parseInt(localBatch.unitsToMake) || 0;
       const laborHours = parseFloat(localBatch.laborHours) || 0;
       const hourlyRate = parseFloat(localBatch.hourlyRate) || 0;
+      const packagingUnitPrice = parseFloat(localBatch.packagingUnitPrice) || 0;
       
       let ingredientTotal = 0;
       Object.entries(localBatch.ingredients || {}).forEach(([ingredient, data]) => {
@@ -137,31 +148,42 @@ export default function Home() {
       });
 
       const laborTotal = laborHours * hourlyRate;
-      const overheadTotal = overheadPerUnit;
-      const variableTotal = 0.50;
-      const subtotal = ingredientTotal + laborTotal + overheadTotal + variableTotal;
+      const packagingTotal = unitsToMake * packagingUnitPrice;
+      const overheadTotal = overheadPerUnit * unitsToMake;
+      const variableTotal = 0.50 * unitsToMake;
+      const subtotal = ingredientTotal + laborTotal + packagingTotal + overheadTotal + variableTotal;
       const buffer = subtotal * 0.05;
-      const totalCostPerUnit = subtotal + buffer;
+      const totalBatchCost = subtotal + buffer;
+      const costPerUnit = unitsToMake > 0 ? totalBatchCost / unitsToMake : 0;
 
-      const unitsProduced = totalKg > 0 ? Math.floor((totalKg * 1000) / sizeGrams) : 0;
-      const totalBatchCost = totalCostPerUnit * unitsProduced;
-
-      return { ingredientTotal, laborTotal, subtotal, buffer, totalCostPerUnit, unitsProduced, totalBatchCost };
+      return { ingredientTotal, laborTotal, packagingTotal, overheadTotal, variableTotal, subtotal, buffer, totalBatchCost, costPerUnit, unitsToMake };
     };
 
     const results = calculateBatchResults();
+    const retailPrice = parseFloat(localBatch.retailPrice) || retailPrices[productId] || 0;
+    const wholesalePrice = parseFloat(localBatch.wholesalePrice) || wholesalePrices[productId] || 0;
+    const retailMargin = retailPrice > 0 ? (((retailPrice - results.costPerUnit) / retailPrice) * 100).toFixed(1) : '0';
+    const wholesaleMargin = wholesalePrice > 0 ? (((wholesalePrice - results.costPerUnit) / wholesalePrice) * 100).toFixed(1) : '0';
+    const retailColor = retailMargin >= 30 ? '#10b981' : retailMargin >= 15 ? '#eab308' : '#ef4444';
+    const wholesaleColor = wholesaleMargin >= 20 ? '#10b981' : wholesaleMargin >= 10 ? '#eab308' : '#ef4444';
 
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', maxWidth: '700px', width: '95%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>Batch Costing: {product.name} {product.size}</h2>
             <button onClick={() => setBatchModal(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
           </div>
 
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontWeight: '600', marginBottom: '6px', fontSize: '13px' }}>Total Batch Size (KG)</label>
-            <input type="number" value={localBatch.totalKg || 10} onChange={(e) => setLocalBatch({ ...localBatch, totalKg: e.target.value })} step="0.1" style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            <div>
+              <label style={{ display: 'block', fontWeight: '600', marginBottom: '6px', fontSize: '13px' }}>Units/Boxes to Make</label>
+              <input type="number" value={localBatch.unitsToMake || 25} onChange={(e) => setLocalBatch({ ...localBatch, unitsToMake: e.target.value })} min="1" style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontWeight: '600', marginBottom: '6px', fontSize: '13px' }}>Packaging Cost/Unit ($)</label>
+              <input type="number" value={localBatch.packagingUnitPrice || 0.50} onChange={(e) => setLocalBatch({ ...localBatch, packagingUnitPrice: e.target.value })} step="0.01" style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }} />
+            </div>
           </div>
 
           <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f0f9ff', borderRadius: '6px' }}>
@@ -172,14 +194,14 @@ export default function Home() {
                 <input type="number" value={localBatch.laborHours || 4} onChange={(e) => setLocalBatch({ ...localBatch, laborHours: e.target.value })} step="0.5" style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontWeight: '600', marginBottom: '4px', fontSize: '12px' }}>Hourly Rate</label>
+                <label style={{ display: 'block', fontWeight: '600', marginBottom: '4px', fontSize: '12px' }}>Hourly Rate ($)</label>
                 <input type="number" value={localBatch.hourlyRate || 25} onChange={(e) => setLocalBatch({ ...localBatch, hourlyRate: e.target.value })} step="0.5" style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }} />
               </div>
             </div>
           </div>
 
           <div style={{ marginBottom: '16px' }}>
-            <h4 style={{ margin: '0 0 12px 0', fontWeight: '600', fontSize: '13px' }}>Ingredients</h4>
+            <h4 style={{ margin: '0 0 12px 0', fontWeight: '600', fontSize: '13px' }}>Ingredients (KG for entire batch)</h4>
             {Object.entries(product.formulation).map(([ingredient]) => {
               const ingData = localBatch.ingredients?.[ingredient] || { kg: 1, costPerKg: ingredientCosts[ingredient] || 0 };
               return (
@@ -191,7 +213,7 @@ export default function Home() {
                       <input type="number" value={ingData.kg} onChange={(e) => setLocalBatch({ ...localBatch, ingredients: { ...localBatch.ingredients, [ingredient]: { ...ingData, kg: e.target.value } } })} step="0.1" style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }} />
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', marginBottom: '4px' }}>Cost/KG</label>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', marginBottom: '4px' }}>Cost/KG ($)</label>
                       <input type="number" value={ingData.costPerKg} onChange={(e) => setLocalBatch({ ...localBatch, ingredients: { ...localBatch.ingredients, [ingredient]: { ...ingData, costPerKg: e.target.value } } })} step="0.01" style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }} />
                     </div>
                   </div>
@@ -201,30 +223,66 @@ export default function Home() {
             })}
           </div>
 
-          <div style={{ padding: '16px', backgroundColor: '#dcfce7', borderRadius: '8px', marginBottom: '16px' }}>
-            <h4 style={{ margin: '0 0 12px 0', fontWeight: '600', fontSize: '13px' }}>Batch Results</h4>
-            <div style={{ fontSize: '12px', lineHeight: '1.8' }}>
+          <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#fef3c7', borderRadius: '6px' }}>
+            <h4 style={{ margin: '0 0 12px 0', fontWeight: '600', fontSize: '13px' }}>Pricing</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontWeight: '600', marginBottom: '4px', fontSize: '12px' }}>Retail Price ($)</label>
+                <input type="number" value={localBatch.retailPrice || retailPrices[productId] || 0} onChange={(e) => setLocalBatch({ ...localBatch, retailPrice: e.target.value })} step="0.01" style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: '600', marginBottom: '4px', fontSize: '12px' }}>Wholesale Price ($)</label>
+                <input type="number" value={localBatch.wholesalePrice || wholesalePrices[productId] || 0} onChange={(e) => setLocalBatch({ ...localBatch, wholesalePrice: e.target.value })} step="0.01" style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }} />
+              </div>
+            </div>
+          </div>
+
+          <div style={{ padding: '16px', backgroundColor: '#dcfce7', borderRadius: '8px', marginBottom: '16px', fontSize: '12px' }}>
+            <h4 style={{ margin: '0 0 12px 0', fontWeight: '600', fontSize: '13px' }}>📊 Batch Results</h4>
+            <div style={{ lineHeight: '1.8' }}>
               <div>Raw Materials: <span style={{ fontWeight: '600' }}>${results.ingredientTotal.toFixed(2)}</span></div>
               <div>Labor: <span style={{ fontWeight: '600' }}>${results.laborTotal.toFixed(2)}</span></div>
-              <div>Overhead: <span style={{ fontWeight: '600' }}>${(overheadPerUnit).toFixed(2)}</span></div>
-              <div>Variable: <span style={{ fontWeight: '600' }}>$0.50</span></div>
+              <div>Packaging ({results.unitsToMake} × ${(parseFloat(localBatch.packagingUnitPrice) || 0).toFixed(2)}): <span style={{ fontWeight: '600' }}>${results.packagingTotal.toFixed(2)}</span></div>
+              <div>Overhead: <span style={{ fontWeight: '600' }}>${results.overheadTotal.toFixed(2)}</span></div>
+              <div>Variable: <span style={{ fontWeight: '600' }}>${results.variableTotal.toFixed(2)}</span></div>
               <div style={{ borderTop: '1px solid #86efac', paddingTop: '8px', marginTop: '8px' }}>
                 <div>Subtotal: <span style={{ fontWeight: '600' }}>${results.subtotal.toFixed(2)}</span></div>
                 <div>Buffer (5%): <span style={{ fontWeight: '600' }}>${results.buffer.toFixed(2)}</span></div>
                 <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#2563eb', marginTop: '6px' }}>
-                  Total Cost/Unit: ${results.totalCostPerUnit.toFixed(2)}
+                  Total Batch Cost: ${results.totalBatchCost.toFixed(2)}
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#059669', marginTop: '4px' }}>
+                  Cost/Unit: ${results.costPerUnit.toFixed(2)}
                 </div>
               </div>
-              <div style={{ borderTop: '1px solid #86efac', paddingTop: '8px', marginTop: '8px', fontSize: '13px', fontWeight: 'bold' }}>
-                <div>Units Produced: {results.unitsProduced}</div>
-                <div style={{ color: '#2563eb' }}>Total Batch Cost: ${results.totalBatchCost.toFixed(2)}</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ padding: '12px', backgroundColor: '#f3e8ff', borderRadius: '6px', fontSize: '12px' }}>
+              <h5 style={{ margin: '0 0 8px 0', fontWeight: '600' }}>💰 RETAIL</h5>
+              <div>Price: <span style={{ fontWeight: '600' }}>${retailPrice.toFixed(2)}</span></div>
+              <div>Cost: <span style={{ fontWeight: '600' }}>${results.costPerUnit.toFixed(2)}</span></div>
+              <div>Profit: <span style={{ fontWeight: '600' }}>${(retailPrice - results.costPerUnit).toFixed(2)}</span></div>
+              <div style={{ borderTop: '1px solid #d8b4fe', paddingTop: '6px', marginTop: '6px', fontSize: '13px', fontWeight: 'bold', color: retailColor }}>
+                Margin: {retailMargin}%
+              </div>
+            </div>
+
+            <div style={{ padding: '12px', backgroundColor: '#e0e7ff', borderRadius: '6px', fontSize: '12px' }}>
+              <h5 style={{ margin: '0 0 8px 0', fontWeight: '600' }}>🏪 WHOLESALE</h5>
+              <div>Price: <span style={{ fontWeight: '600' }}>${wholesalePrice.toFixed(2)}</span></div>
+              <div>Cost: <span style={{ fontWeight: '600' }}>${results.costPerUnit.toFixed(2)}</span></div>
+              <div>Profit: <span style={{ fontWeight: '600' }}>${(wholesalePrice - results.costPerUnit).toFixed(2)}</span></div>
+              <div style={{ borderTop: '1px solid #c7d2fe', paddingTop: '6px', marginTop: '6px', fontSize: '13px', fontWeight: 'bold', color: wholesaleColor }}>
+                Margin: {wholesaleMargin}%
               </div>
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-            <button onClick={() => setBatchModal(null)} style={{ padding: '8px 16px', backgroundColor: '#ddd', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Close</button>
-            <button onClick={() => { setBatchData({ ...batchData, [productId]: localBatch }); setBatchModal(null); }} style={{ padding: '8px 16px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Save Batch</button>
+            <button onClick={() => setBatchModal(null)} style={{ padding: '10px 16px', backgroundColor: '#ddd', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Close</button>
+            <button onClick={() => { setBatchData({ ...batchData, [productId]: localBatch }); setBatchModal(null); }} style={{ padding: '10px 16px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Save Batch</button>
           </div>
         </div>
       </div>
@@ -235,10 +293,13 @@ export default function Home() {
     const isExpanded = expandedProduct === id;
     const standardCosts = calculateTotalCost(product.cost);
     const retail = retailPrices[id] || 0;
-    const profit = retail - standardCosts.total;
-    const margin = retail > 0 ? ((profit / retail) * 100).toFixed(1) : 0;
-    const marginColor = margin >= 50 ? '#10b981' : margin >= 30 ? '#eab308' : '#ef4444';
-    const savedBatch = batchData[id];
+    const wholesale = wholesalePrices[id] || 0;
+    const retailProfit = retail - standardCosts.total;
+    const wholesaleProfit = wholesale - standardCosts.total;
+    const retailMargin = retail > 0 ? ((retailProfit / retail) * 100).toFixed(1) : 0;
+    const wholesaleMargin = wholesale > 0 ? ((wholesaleProfit / wholesale) * 100).toFixed(1) : 0;
+    const retailColor = retailMargin >= 30 ? '#10b981' : retailMargin >= 15 ? '#eab308' : '#ef4444';
+    const wholesaleColor = wholesaleMargin >= 20 ? '#10b981' : wholesaleMargin >= 10 ? '#eab308' : '#ef4444';
 
     return (
       <div style={{ marginBottom: '8px', border: '1px solid #ddd', borderRadius: '4px', padding: '12px', backgroundColor: '#fff', cursor: 'pointer' }} onClick={() => setExpandedProduct(isExpanded ? null : id)}>
@@ -247,11 +308,14 @@ export default function Home() {
             <h4 style={{ margin: '0 0 4px 0', fontWeight: '600', fontSize: '14px' }}>{species}</h4>
             <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>{product.size}</p>
           </div>
-          <div style={{ textAlign: 'right' }}>
+          <div style={{ textAlign: 'right', marginRight: '12px' }}>
+            <div style={{ fontSize: '12px', marginBottom: '4px' }}>
+              <span style={{ color: retailColor, fontWeight: '600' }}>🛒 {retailMargin}%</span> | 
+              <span style={{ color: wholesaleColor, fontWeight: '600', marginLeft: '8px' }}>🏪 {wholesaleMargin}%</span>
+            </div>
             <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#2563eb' }}>${standardCosts.total.toFixed(2)}</div>
-            <div style={{ fontSize: '12px', fontWeight: '600', color: marginColor }}>{margin}% margin</div>
           </div>
-          <div style={{ marginLeft: '8px', fontSize: '16px', color: '#999' }}>{isExpanded ? '▼' : '▶'}</div>
+          <div style={{ fontSize: '16px', color: '#999' }}>{isExpanded ? '▼' : '▶'}</div>
         </div>
 
         {isExpanded && (
@@ -269,33 +333,27 @@ export default function Home() {
               </div>
             </div>
 
-            {savedBatch && (
-              <div style={{ padding: '12px', backgroundColor: '#fef3c7', borderRadius: '6px', marginBottom: '12px', fontSize: '12px' }}>
-                <h5 style={{ fontWeight: '600', margin: '0 0 8px 0' }}>✓ Saved Batch Costing</h5>
-                <div>Batch Size: <span style={{ fontWeight: '600' }}>{savedBatch.totalKg} kg</span></div>
-                <div>Labor: <span style={{ fontWeight: '600' }}>{savedBatch.laborHours} hrs @ ${savedBatch.hourlyRate}/hr = ${(parseFloat(savedBatch.laborHours) * parseFloat(savedBatch.hourlyRate)).toFixed(2)}</span></div>
-                <div style={{ borderTop: '1px solid #fcd34d', paddingTop: '6px', marginTop: '6px' }}>
-                  <div>Units Produced: <span style={{ fontWeight: '600' }}>{Math.floor((parseFloat(savedBatch.totalKg) * 1000) / getSizeInGrams(product.size))}</span></div>
-                  <div style={{ fontWeight: 'bold', color: '#f59e0b' }}>Batch Cost: ${((parseFloat(savedBatch.totalKg) * 1000 / getSizeInGrams(product.size)) * (calculateTotalCost(product.cost).total)).toFixed(2)}</div>
-                </div>
-                <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
-                  <button onClick={(e) => { e.stopPropagation(); setBatchModal(id); }} style={{ flex: 1, padding: '6px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>Edit</button>
-                  <button onClick={(e) => { e.stopPropagation(); const newData = { ...batchData }; delete newData[id]; setBatchData(newData); }} style={{ flex: 1, padding: '6px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>Clear</button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <div style={{ padding: '12px', backgroundColor: '#f3e8ff', borderRadius: '6px', fontSize: '12px' }}>
+                <h5 style={{ margin: '0 0 8px 0', fontWeight: '600' }}>💰 Retail</h5>
+                <div>Price: ${retail.toFixed(2)}</div>
+                <div>Profit: ${retailProfit.toFixed(2)}</div>
+                <div style={{ borderTop: '1px solid #d8b4fe', paddingTop: '6px', marginTop: '6px', fontWeight: 'bold', color: retailColor }}>
+                  {retailMargin}% margin
                 </div>
               </div>
-            )}
 
-            <button onClick={(e) => { e.stopPropagation(); setBatchModal(id); }} style={{ width: '100%', padding: '8px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>📊 {savedBatch ? 'Edit Batch Costing' : 'Create Batch Costing'}</button>
-
-            {retail > 0 && (
-              <div style={{ padding: '8px', backgroundColor: '#dcfce7', borderRadius: '4px', marginTop: '12px', fontSize: '12px' }}>
-                <p style={{ margin: 0 }}>
-                  <span style={{ fontWeight: '600' }}>Retail:</span> ${retail} | 
-                  <span style={{ fontWeight: '600' }}> Profit:</span> ${profit.toFixed(2)} | 
-                  <span style={{ fontWeight: '600', color: marginColor }}> {margin}%</span>
-                </p>
+              <div style={{ padding: '12px', backgroundColor: '#e0e7ff', borderRadius: '6px', fontSize: '12px' }}>
+                <h5 style={{ margin: '0 0 8px 0', fontWeight: '600' }}>🏪 Wholesale</h5>
+                <div>Price: ${wholesale.toFixed(2)}</div>
+                <div>Profit: ${wholesaleProfit.toFixed(2)}</div>
+                <div style={{ borderTop: '1px solid #c7d2fe', paddingTop: '6px', marginTop: '6px', fontWeight: 'bold', color: wholesaleColor }}>
+                  {wholesaleMargin}% margin
+                </div>
               </div>
-            )}
+            </div>
+
+            <button onClick={(e) => { e.stopPropagation(); setBatchModal(id); }} style={{ width: '100%', padding: '8px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>📊 Batch Costing</button>
           </div>
         )}
       </div>
@@ -336,7 +394,7 @@ export default function Home() {
     <div style={{ width: '100%', minHeight: '100vh', backgroundColor: '#f9fafb', display: 'flex', flexDirection: 'column' }}>
       <div style={{ backgroundColor: '#2563eb', color: 'white', padding: '16px', boxShadow: '0 10px 15px rgba(0,0,0,0.1)' }}>
         <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 4px 0' }}>🧮 Formula Raw Production Costing</h1>
-        <p style={{ fontSize: '13px', color: '#93c5fd', margin: 0 }}>Organized by category, size & species</p>
+        <p style={{ fontSize: '13px', color: '#93c5fd', margin: 0 }}>Retail vs Wholesale Margin Analysis</p>
       </div>
 
       <div style={{ display: 'flex', borderBottom: '1px solid #ddd', backgroundColor: '#fff' }}>
@@ -368,7 +426,7 @@ export default function Home() {
                 <div key={ingredient} style={{ backgroundColor: '#fff', padding: '16px', borderRadius: '8px', border: '1px solid #ddd' }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>{ingredient}</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '12px', color: '#666' }}>$</span>
+                    <span style={{ fontSize: '12px', color: '#666' }}>$/kg</span>
                     <input type="number" value={cost} onChange={(e) => setIngredientCosts({ ...ingredientCosts, [ingredient]: parseFloat(e.target.value) || 0 })} step="0.01" style={{ flex: 1, padding: '6px 8px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }} />
                   </div>
                 </div>
