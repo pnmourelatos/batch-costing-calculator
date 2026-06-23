@@ -1,7 +1,29 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { getFirestore, collection, doc, getDoc, setDoc, query, where } from 'firebase/firestore';
+
+// Your Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyBlBpHCfWVeNLwKUjhUVLb76AN_BXGQHOc",
+  authDomain: "formula-raw-costing.firebaseapp.com",
+  projectId: "formula-raw-costing",
+  storageBucket: "formula-raw-costing.firebasestorage.app",
+  messagingSenderId: "569013355547",
+  appId: "1:569013355547:web:d64823dd78d5fab16ba4be",
+  measurementId: "G-L1W5PXMYXK"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
 
 export default function Home() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('products');
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [expandedSize, setExpandedSize] = useState({});
@@ -106,6 +128,66 @@ export default function Home() {
     'TR-DUCK-100': { name: 'Duck Treats', category: 'Treats & Supplements', size: '100g', cost: 4.50, formulation: { 'Duck': 0.90, 'Packaging': 0.10 } },
     'SUP-JT-60': { name: 'Joint Support', category: 'Treats & Supplements', size: '60g', cost: 12.50, formulation: { 'Supplements': 0.80, 'Carrier': 0.15, 'Packaging': 0.05 } },
     'SUP-JT-150': { name: 'Joint Support', category: 'Treats & Supplements', size: '150g', cost: 28.00, formulation: { 'Supplements': 0.80, 'Carrier': 0.15, 'Packaging': 0.05 } },
+  };
+
+  // Check if user is logged in
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        // Load user's batch data from Firestore
+        try {
+          const userDocRef = doc(db, 'users', currentUser.uid);
+          const docSnap = await getDoc(userDocRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setBatchData(data.batchData || {});
+            setLaborPerUnit(data.laborPerUnit || 15);
+            setOverheadPerUnit(data.overheadPerUnit || 10);
+          }
+        } catch (error) {
+          console.error('Error loading data:', error);
+        }
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error('Login failed:', error);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
+  // Save batch data to Firestore
+  const saveBatchToFirestore = async (productId, batch) => {
+    if (!user) return;
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      const newBatchData = { ...batchData, [productId]: batch };
+      await setDoc(userDocRef, {
+        batchData: newBatchData,
+        laborPerUnit,
+        overheadPerUnit,
+        email: user.email,
+        lastUpdated: new Date().toISOString()
+      }, { merge: true });
+      setBatchData(newBatchData);
+    } catch (error) {
+      console.error('Error saving batch:', error);
+    }
   };
 
   const calculateTotalCost = (productCost) => {
@@ -282,7 +364,7 @@ export default function Home() {
 
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
             <button onClick={() => setBatchModal(null)} style={{ padding: '10px 16px', backgroundColor: '#ddd', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Close</button>
-            <button onClick={() => { setBatchData({ ...batchData, [productId]: localBatch }); setBatchModal(null); }} style={{ padding: '10px 16px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Save Batch</button>
+            <button onClick={() => { saveBatchToFirestore(productId, localBatch); setBatchModal(null); }} style={{ padding: '10px 16px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>💾 Save to Cloud</button>
           </div>
         </div>
       </div>
@@ -390,12 +472,36 @@ export default function Home() {
     );
   };
 
+  if (loading) {
+    return <div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>;
+  }
+
   return (
     <div style={{ width: '100%', minHeight: '100vh', backgroundColor: '#f9fafb', display: 'flex', flexDirection: 'column' }}>
       <div style={{ backgroundColor: '#2563eb', color: 'white', padding: '16px', boxShadow: '0 10px 15px rgba(0,0,0,0.1)' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 4px 0' }}>🧮 Formula Raw Production Costing</h1>
-        <p style={{ fontSize: '13px', color: '#93c5fd', margin: 0 }}>Retail vs Wholesale Margin Analysis</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 4px 0' }}>🧮 Formula Raw Production Costing</h1>
+            <p style={{ fontSize: '13px', color: '#93c5fd', margin: 0 }}>Retail vs Wholesale Margin Analysis</p>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            {user ? (
+              <div>
+                <div style={{ fontSize: '13px', marginBottom: '8px', color: '#93c5fd' }}>👤 {user.email}</div>
+                <button onClick={handleLogout} style={{ padding: '8px 16px', backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>Logout</button>
+              </div>
+            ) : (
+              <button onClick={handleGoogleLogin} style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#2563eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>🔐 Login with Google</button>
+            )}
+          </div>
+        </div>
       </div>
+
+      {!user && (
+        <div style={{ padding: '20px', backgroundColor: '#fef3c7', borderBottom: '1px solid #fcd34d', textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: '14px', color: '#92400e' }}>📝 Login to save your batch data to the cloud</p>
+        </div>
+      )}
 
       <div style={{ display: 'flex', borderBottom: '1px solid #ddd', backgroundColor: '#fff' }}>
         <button onClick={() => setActiveTab('products')} style={{ flex: 1, padding: '12px 16px', fontWeight: '600', fontSize: '13px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer', borderBottom: activeTab === 'products' ? '2px solid #2563eb' : 'none', color: activeTab === 'products' ? '#2563eb' : '#666' }}>
