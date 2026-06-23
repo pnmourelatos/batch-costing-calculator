@@ -4,15 +4,15 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, getDoc, setDoc, query, where } from 'firebase/firestore';
 
-// Your Firebase config
+// Your Firebase config (uses environment variables from .env.local)
 const firebaseConfig = {
-  apiKey: "AIzaSyBlBpHCfWVeNLwKUjhUVLb76AN_BXGQHOc",
-  authDomain: "formula-raw-costing.firebaseapp.com",
-  projectId: "formula-raw-costing",
-  storageBucket: "formula-raw-costing.firebasestorage.app",
-  messagingSenderId: "569013355547",
-  appId: "1:569013355547:web:d64823dd78d5fab16ba4be",
-  measurementId: "G-L1W5PXMYXK"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
