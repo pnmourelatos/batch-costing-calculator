@@ -213,7 +213,7 @@ export default function Home() {
   const groupedProducts = groupProductsByCategory();
 
   const BatchModal = ({ productId, product }) => {
-    const batch = batchData[productId] || {};
+    const __defIng = {}; Object.keys(product.formulation).forEach(function(ing){ __defIng[ing] = { kg: 1, costPerKg: ingredientCosts[ing] || 0 }; }); const __sv = batchData[productId]; const batch = __sv ? Object.assign({ unitsToMake: 25, packagingUnitPrice: 0.50, laborHours: 4, hourlyRate: 25, retailPrice: retailPrices[productId] || 0, wholesalePrice: wholesalePrices[productId] || 0 }, __sv, { ingredients: Object.assign({}, __defIng, __sv.ingredients || {}) }) : { unitsToMake: 25, packagingUnitPrice: 0.50, laborHours: 4, hourlyRate: 25, ingredients: __defIng, retailPrice: retailPrices[productId] || 0, wholesalePrice: wholesalePrices[productId] || 0 };
     const [localBatch, setLocalBatch] = useState(batch);
 
     const calculateBatchResults = () => {
@@ -364,7 +364,7 @@ export default function Home() {
 
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
             <button onClick={() => setBatchModal(null)} style={{ padding: '10px 16px', backgroundColor: '#ddd', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Close</button>
-            <button onClick={() => { saveBatchToFirestore(productId, localBatch); setBatchModal(null); }} style={{ padding: '10px 16px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>💾 Save to Cloud</button>
+            <button onClick={() => { saveBatchToFirestore(productId, Object.assign({}, localBatch, { costPerUnit: results.costPerUnit, totalBatchCost: results.totalBatchCost, retailPrice: (typeof retailPrice === 'number' && !isNaN(retailPrice)) ? retailPrice : 0, wholesalePrice: (typeof wholesalePrice === 'number' && !isNaN(wholesalePrice)) ? wholesalePrice : 0 })); setBatchModal(null); }} style={{ padding: '10px 16px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>💾 Save to Cloud</button>
           </div>
         </div>
       </div>
@@ -374,10 +374,10 @@ export default function Home() {
   const ProductItem = ({ id, species, product }) => {
     const isExpanded = expandedProduct === id;
     const standardCosts = calculateTotalCost(product.cost);
-    const retail = retailPrices[id] || 0;
-    const wholesale = wholesalePrices[id] || 0;
-    const retailProfit = retail - standardCosts.total;
-    const wholesaleProfit = wholesale - standardCosts.total;
+    const __sv = batchData[id]; const hasBatch = __sv && __sv.costPerUnit !== undefined && __sv.costPerUnit > 0; const displayCost = hasBatch ? __sv.costPerUnit : standardCosts.total; const retail = (__sv && __sv.retailPrice !== undefined && __sv.retailPrice !== '' && !isNaN(parseFloat(__sv.retailPrice))) ? parseFloat(__sv.retailPrice) : (retailPrices[id] || 0);
+    const wholesale = (__sv && __sv.wholesalePrice !== undefined && __sv.wholesalePrice !== '' && !isNaN(parseFloat(__sv.wholesalePrice))) ? parseFloat(__sv.wholesalePrice) : (wholesalePrices[id] || 0);
+    const retailProfit = retail - displayCost;
+    const wholesaleProfit = wholesale - displayCost;
     const retailMargin = retail > 0 ? ((retailProfit / retail) * 100).toFixed(1) : 0;
     const wholesaleMargin = wholesale > 0 ? ((wholesaleProfit / wholesale) * 100).toFixed(1) : 0;
     const retailColor = retailMargin >= 30 ? '#10b981' : retailMargin >= 15 ? '#eab308' : '#ef4444';
@@ -395,7 +395,7 @@ export default function Home() {
               <span style={{ color: retailColor, fontWeight: '600' }}>🛒 {retailMargin}%</span> | 
               <span style={{ color: wholesaleColor, fontWeight: '600', marginLeft: '8px' }}>🏪 {wholesaleMargin}%</span>
             </div>
-            <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#2563eb' }}>${standardCosts.total.toFixed(2)}</div>
+            <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#2563eb' }}>${displayCost.toFixed(2)}</div>
           </div>
           <div style={{ fontSize: '16px', color: '#999' }}>{isExpanded ? '▼' : '▶'}</div>
         </div>
@@ -403,7 +403,7 @@ export default function Home() {
         {isExpanded && (
           <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #ddd' }}>
             <div style={{ marginBottom: '12px', fontSize: '12px' }}>
-              <h5 style={{ fontWeight: '600', margin: '0 0 6px 0' }}>Standard Costing (Per Unit)</h5>
+              <h5 style={{ fontWeight: '600', margin: '0 0 6px 0' }}>{hasBatch ? 'Cost Summary (Per Unit)' : 'Standard Estimate (Per Unit)'}</h5>
               <div>Raw Materials: <span style={{ fontWeight: '600' }}>${standardCosts.rawMaterial.toFixed(2)}</span></div>
               <div>Labor: <span style={{ fontWeight: '600' }}>${standardCosts.labor.toFixed(2)}</span></div>
               <div>Overhead: <span style={{ fontWeight: '600' }}>${standardCosts.overhead.toFixed(2)}</span></div>
@@ -411,7 +411,7 @@ export default function Home() {
               <div style={{ borderTop: '1px solid #ddd', paddingTop: '6px', marginTop: '6px' }}>
                 <div>Subtotal: <span style={{ fontWeight: '600' }}>${standardCosts.subtotal.toFixed(2)}</span></div>
                 <div>Buffer (5%): <span style={{ fontWeight: '600' }}>${standardCosts.buffer.toFixed(2)}</span></div>
-                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#2563eb', marginTop: '4px' }}>Total: ${standardCosts.total.toFixed(2)}</div>
+                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#2563eb', marginTop: '4px' }}>{hasBatch ? 'Batch Cost/Unit: $' : 'Total: $'}{displayCost.toFixed(2)}</div>
               </div>
             </div>
 
