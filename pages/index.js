@@ -87,6 +87,21 @@ const DEFAULT_PRODUCTS = {
   'SUP-JT-150': { name: 'Joint Support', category: 'Treats & Supplements', size: '150g', cost: 28.00, formulation: { 'Supplements': 0.80, 'Carrier': 0.15, 'Packaging': 0.05 } },
 };
 
+const generateSku = (name, category, size, existingProducts) => {
+  const catPrefix = {
+    'Freeze-Dried Dogs': 'FD-D', 'Freeze-Dried Cats': 'FD-C',
+    'Frozen Dogs': 'FM-D',       'Frozen Cats': 'FM-C',
+    'Treats & Supplements': 'TR',
+  }[category] || category.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 4);
+  const nameCode = name.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 4);
+  const sizeCode = size.replace(/\s+/g, '').replace(/(\d+)g$/, '$1');
+  const base = `${catPrefix}${nameCode}-${sizeCode}`;
+  if (!existingProducts[base]) return base;
+  let i = 2;
+  while (existingProducts[`${base}-${i}`]) i++;
+  return `${base}-${i}`;
+};
+
 export default function Home() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -136,6 +151,7 @@ export default function Home() {
 
   const [products, setProducts] = useState(DEFAULT_PRODUCTS);
   const [addIngredientModal, setAddIngredientModal] = useState(false);
+  const [addProductModal, setAddProductModal] = useState(false);
 
   useEffect(() => {
     if (!auth) { setLoading(false); return; }
@@ -456,6 +472,86 @@ export default function Home() {
     );
   };
 
+  const AddProductModal = () => {
+    const categories = [...new Set(Object.values(products).map(p => p.category))];
+    const [form, setForm] = useState({ name: '', category: categories[0] || '', size: '', retailPrice: '', wholesalePrice: '' });
+    const [checkedIngredients, setCheckedIngredients] = useState({});
+    const canSave = form.name.trim() && form.category && form.size.trim();
+
+    const handleSave = () => {
+      if (!canSave) return;
+      const sku = generateSku(form.name.trim(), form.category, form.size.trim(), products);
+      const formulation = {};
+      Object.entries(checkedIngredients).forEach(([ing, on]) => { if (on) formulation[ing] = 0; });
+      setProducts(prev => ({ ...prev, [sku]: { name: form.name.trim(), category: form.category, size: form.size.trim(), cost: 0, formulation } }));
+      setRetailPrices(prev => ({ ...prev, [sku]: parseFloat(form.retailPrice) || 0 }));
+      setWholesalePrices(prev => ({ ...prev, [sku]: parseFloat(form.wholesalePrice) || 0 }));
+      setAddProductModal(false);
+    };
+
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', maxWidth: '600px', width: '95%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>Add Product</h2>
+            <button onClick={() => setAddProductModal(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            <div>
+              <label style={{ display: 'block', fontWeight: '600', marginBottom: '6px', fontSize: '13px' }}>Product Name</label>
+              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Tuna" style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontWeight: '600', marginBottom: '6px', fontSize: '13px' }}>Category</label>
+              <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}>
+                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            <div>
+              <label style={{ display: 'block', fontWeight: '600', marginBottom: '6px', fontSize: '13px' }}>Size</label>
+              <input value={form.size} onChange={e => setForm(f => ({ ...f, size: e.target.value }))} placeholder="e.g. 400g" style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontWeight: '600', marginBottom: '6px', fontSize: '13px' }}>Retail Price ($)</label>
+              <input type="number" value={form.retailPrice} onChange={e => setForm(f => ({ ...f, retailPrice: e.target.value }))} step="0.01" placeholder="0.00" style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontWeight: '600', marginBottom: '6px', fontSize: '13px' }}>Wholesale Price ($)</label>
+              <input type="number" value={form.wholesalePrice} onChange={e => setForm(f => ({ ...f, wholesalePrice: e.target.value }))} step="0.01" placeholder="0.00" style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }} />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontWeight: '600', marginBottom: '10px', fontSize: '13px' }}>Ingredients (optional)</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', maxHeight: '160px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '10px' }}>
+              {Object.keys(ingredientCosts).map(ing => (
+                <label key={ing} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={!!checkedIngredients[ing]} onChange={e => setCheckedIngredients(prev => ({ ...prev, [ing]: e.target.checked }))} />
+                  {ing}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {form.name.trim() && form.size.trim() && (
+            <div style={{ marginBottom: '16px', padding: '8px 12px', backgroundColor: '#f0f9ff', borderRadius: '6px', fontSize: '12px', color: '#1e40af' }}>
+              SKU: <strong>{generateSku(form.name.trim(), form.category, form.size.trim(), products)}</strong>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button onClick={() => setAddProductModal(false)} style={{ padding: '10px 16px', backgroundColor: '#ddd', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Cancel</button>
+            <button onClick={handleSave} disabled={!canSave} style={{ padding: '10px 16px', backgroundColor: canSave ? '#2563eb' : '#93c5fd', color: 'white', border: 'none', borderRadius: '6px', cursor: canSave ? 'pointer' : 'not-allowed', fontWeight: '600', fontSize: '13px' }}>Save Product</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const ProductItem = ({ id, species, product }) => {
     const isExpanded = expandedProduct === id;
     const standardCosts = calculateTotalCost(product.cost);
@@ -603,6 +699,10 @@ export default function Home() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
         {activeTab === 'products' && (
           <div style={{ maxWidth: '900px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <span style={{ fontSize: '14px', color: '#666' }}>{Object.keys(products).length} products</span>
+              <button onClick={() => setAddProductModal(true)} style={{ padding: '8px 16px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>+ Add Product</button>
+            </div>
             {Object.entries(groupedProducts).map(([category, sizes]) => (
               <CategorySection key={category} categoryName={category} sizes={sizes} />
             ))}
@@ -647,6 +747,7 @@ export default function Home() {
 
       {batchModal && <BatchModal productId={batchModal} product={products[batchModal]} />}
       {addIngredientModal && <AddIngredientModal />}
+      {addProductModal && <AddProductModal />}
     </div>
   );
 }
