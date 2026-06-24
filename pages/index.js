@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import { getFirestore, collection, doc, getDoc, setDoc, query, where } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 
 // Your Firebase config (uses environment variables from .env.local)
 const firebaseConfig = {
@@ -15,11 +15,77 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const googleProvider = new GoogleAuthProvider();
+// Lazy-initialize: module runs in Node during `next build` (no window, no env vars)
+const _fbApp = typeof window !== 'undefined'
+  ? (getApps().length === 0 ? initializeApp(firebaseConfig) : getApp())
+  : null;
+const auth = _fbApp ? getAuth(_fbApp) : null;
+const db = _fbApp ? getFirestore(_fbApp) : null;
+const googleProvider = _fbApp ? new GoogleAuthProvider() : null;
+
+const DEFAULT_INGREDIENT_COSTS = {
+  'Beef': 3.50, 'Lamb': 4.20, 'Chicken': 2.80, 'Turkey': 3.10, 'Kangaroo': 5.50,
+  'Salmon': 6.20, 'Rabbit': 5.80, 'Duck': 4.90, 'Fish Oil': 2.00, 'Organs': 1.50,
+  'Mixed Meats': 3.80, 'Vegetables': 0.80, 'Supplements': 8.00, 'Carrier': 1.20,
+};
+
+const DEFAULT_PRODUCTS = {
+  'FD-DB-400': { name: 'Beef', category: 'Freeze-Dried Dogs', size: '400g', cost: 8.50, formulation: { 'Beef': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DB-850': { name: 'Beef', category: 'Freeze-Dried Dogs', size: '850g', cost: 17.00, formulation: { 'Beef': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DL-400': { name: 'Lamb', category: 'Freeze-Dried Dogs', size: '400g', cost: 9.20, formulation: { 'Lamb': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DL-850': { name: 'Lamb', category: 'Freeze-Dried Dogs', size: '850g', cost: 18.40, formulation: { 'Lamb': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DC-400': { name: 'Chicken', category: 'Freeze-Dried Dogs', size: '400g', cost: 8.75, formulation: { 'Chicken': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DC-850': { name: 'Chicken', category: 'Freeze-Dried Dogs', size: '850g', cost: 17.50, formulation: { 'Chicken': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DT-400': { name: 'Turkey', category: 'Freeze-Dried Dogs', size: '400g', cost: 8.90, formulation: { 'Turkey': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DT-850': { name: 'Turkey', category: 'Freeze-Dried Dogs', size: '850g', cost: 17.80, formulation: { 'Turkey': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DK-400': { name: 'Kangaroo', category: 'Freeze-Dried Dogs', size: '400g', cost: 10.20, formulation: { 'Kangaroo': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DK-850': { name: 'Kangaroo', category: 'Freeze-Dried Dogs', size: '850g', cost: 20.40, formulation: { 'Kangaroo': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DS-400': { name: 'Salmon', category: 'Freeze-Dried Dogs', size: '400g', cost: 10.75, formulation: { 'Salmon': 0.35, 'Fish Oil': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DS-850': { name: 'Salmon', category: 'Freeze-Dried Dogs', size: '850g', cost: 21.50, formulation: { 'Salmon': 0.35, 'Fish Oil': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DR-400': { name: 'Rabbit', category: 'Freeze-Dried Dogs', size: '400g', cost: 11.20, formulation: { 'Rabbit': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DR-850': { name: 'Rabbit', category: 'Freeze-Dried Dogs', size: '850g', cost: 22.40, formulation: { 'Rabbit': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DMM-400': { name: 'Mix', category: 'Freeze-Dried Dogs', size: '400g', cost: 9.50, formulation: { 'Mixed Meats': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-DMM-850': { name: 'Mix', category: 'Freeze-Dried Dogs', size: '850g', cost: 19.00, formulation: { 'Mixed Meats': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CB-200': { name: 'Beef', category: 'Freeze-Dried Cats', size: '200g', cost: 5.50, formulation: { 'Beef': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CB-400': { name: 'Beef', category: 'Freeze-Dried Cats', size: '400g', cost: 8.50, formulation: { 'Beef': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CL-200': { name: 'Lamb', category: 'Freeze-Dried Cats', size: '200g', cost: 6.00, formulation: { 'Lamb': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CL-400': { name: 'Lamb', category: 'Freeze-Dried Cats', size: '400g', cost: 9.20, formulation: { 'Lamb': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CC-200': { name: 'Chicken', category: 'Freeze-Dried Cats', size: '200g', cost: 5.70, formulation: { 'Chicken': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CC-400': { name: 'Chicken', category: 'Freeze-Dried Cats', size: '400g', cost: 8.75, formulation: { 'Chicken': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CT-200': { name: 'Turkey', category: 'Freeze-Dried Cats', size: '200g', cost: 5.80, formulation: { 'Turkey': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CT-400': { name: 'Turkey', category: 'Freeze-Dried Cats', size: '400g', cost: 8.90, formulation: { 'Turkey': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CK-200': { name: 'Kangaroo', category: 'Freeze-Dried Cats', size: '200g', cost: 6.65, formulation: { 'Kangaroo': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CK-400': { name: 'Kangaroo', category: 'Freeze-Dried Cats', size: '400g', cost: 10.20, formulation: { 'Kangaroo': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CS-200': { name: 'Salmon', category: 'Freeze-Dried Cats', size: '200g', cost: 7.00, formulation: { 'Salmon': 0.35, 'Fish Oil': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CS-400': { name: 'Salmon', category: 'Freeze-Dried Cats', size: '400g', cost: 10.75, formulation: { 'Salmon': 0.35, 'Fish Oil': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CR-200': { name: 'Rabbit', category: 'Freeze-Dried Cats', size: '200g', cost: 7.30, formulation: { 'Rabbit': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CR-400': { name: 'Rabbit', category: 'Freeze-Dried Cats', size: '400g', cost: 11.20, formulation: { 'Rabbit': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CMM-200': { name: 'Mix', category: 'Freeze-Dried Cats', size: '200g', cost: 6.20, formulation: { 'Mixed Meats': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FD-CMM-400': { name: 'Mix', category: 'Freeze-Dried Cats', size: '400g', cost: 9.50, formulation: { 'Mixed Meats': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
+  'FM-DB-5lb': { name: 'Beef', category: 'Frozen Dogs', size: '5lb', cost: 45.00, formulation: { 'Beef': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-DB-10lb': { name: 'Beef', category: 'Frozen Dogs', size: '10lb', cost: 85.00, formulation: { 'Beef': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-DL-5lb': { name: 'Lamb', category: 'Frozen Dogs', size: '5lb', cost: 50.00, formulation: { 'Lamb': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-DL-10lb': { name: 'Lamb', category: 'Frozen Dogs', size: '10lb', cost: 95.00, formulation: { 'Lamb': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-DC-5lb': { name: 'Chicken', category: 'Frozen Dogs', size: '5lb', cost: 48.00, formulation: { 'Chicken': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-DC-10lb': { name: 'Chicken', category: 'Frozen Dogs', size: '10lb', cost: 90.00, formulation: { 'Chicken': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-DT-5lb': { name: 'Turkey', category: 'Frozen Dogs', size: '5lb', cost: 49.00, formulation: { 'Turkey': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-DT-10lb': { name: 'Turkey', category: 'Frozen Dogs', size: '10lb', cost: 92.00, formulation: { 'Turkey': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-DK-5lb': { name: 'Kangaroo', category: 'Frozen Dogs', size: '5lb', cost: 58.00, formulation: { 'Kangaroo': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-DK-10lb': { name: 'Kangaroo', category: 'Frozen Dogs', size: '10lb', cost: 108.00, formulation: { 'Kangaroo': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-CB-2lb': { name: 'Beef', category: 'Frozen Cats', size: '2lb', cost: 22.00, formulation: { 'Beef': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-CB-5lb': { name: 'Beef', category: 'Frozen Cats', size: '5lb', cost: 45.00, formulation: { 'Beef': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-CL-2lb': { name: 'Lamb', category: 'Frozen Cats', size: '2lb', cost: 24.00, formulation: { 'Lamb': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-CL-5lb': { name: 'Lamb', category: 'Frozen Cats', size: '5lb', cost: 50.00, formulation: { 'Lamb': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-CC-2lb': { name: 'Chicken', category: 'Frozen Cats', size: '2lb', cost: 23.00, formulation: { 'Chicken': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-CC-5lb': { name: 'Chicken', category: 'Frozen Cats', size: '5lb', cost: 48.00, formulation: { 'Chicken': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-CT-2lb': { name: 'Turkey', category: 'Frozen Cats', size: '2lb', cost: 23.50, formulation: { 'Turkey': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'FM-CT-5lb': { name: 'Turkey', category: 'Frozen Cats', size: '5lb', cost: 49.00, formulation: { 'Turkey': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
+  'TR-BEEF-100': { name: 'Beef Treats', category: 'Treats & Supplements', size: '100g', cost: 3.50, formulation: { 'Beef': 0.90, 'Packaging': 0.10 } },
+  'TR-LAMB-100': { name: 'Lamb Treats', category: 'Treats & Supplements', size: '100g', cost: 4.00, formulation: { 'Lamb': 0.90, 'Packaging': 0.10 } },
+  'TR-DUCK-100': { name: 'Duck Treats', category: 'Treats & Supplements', size: '100g', cost: 4.50, formulation: { 'Duck': 0.90, 'Packaging': 0.10 } },
+  'SUP-JT-60': { name: 'Joint Support', category: 'Treats & Supplements', size: '60g', cost: 12.50, formulation: { 'Supplements': 0.80, 'Carrier': 0.15, 'Packaging': 0.05 } },
+  'SUP-JT-150': { name: 'Joint Support', category: 'Treats & Supplements', size: '150g', cost: 28.00, formulation: { 'Supplements': 0.80, 'Carrier': 0.15, 'Packaging': 0.05 } },
+};
 
 export default function Home() {
   const [user, setUser] = useState(null);
@@ -31,11 +97,7 @@ export default function Home() {
   const [batchModal, setBatchModal] = useState(null);
   const [laborPerUnit, setLaborPerUnit] = useState(15);
   const [overheadPerUnit, setOverheadPerUnit] = useState(10);
-  const [ingredientCosts, setIngredientCosts] = useState({
-    'Beef': 3.50, 'Lamb': 4.20, 'Chicken': 2.80, 'Turkey': 3.10, 'Kangaroo': 5.50,
-    'Salmon': 6.20, 'Rabbit': 5.80, 'Duck': 4.90, 'Fish Oil': 2.00, 'Organs': 1.50,
-    'Mixed Meats': 3.80, 'Vegetables': 0.80, 'Supplements': 8.00, 'Carrier': 1.20,
-  });
+  const [ingredientCosts, setIngredientCosts] = useState(DEFAULT_INGREDIENT_COSTS);
   const [batchData, setBatchData] = useState({});
   const [retailPrices, setRetailPrices] = useState({
     'FD-DB-400': 39.99, 'FD-DB-850': 69.99, 'FD-DL-400': 44.99, 'FD-DL-850': 74.99,
@@ -72,66 +134,10 @@ export default function Home() {
     'SUP-JT-60': 23.99, 'SUP-JT-150': 51.99,
   });
 
-  const products = {
-    'FD-DB-400': { name: 'Beef', category: 'Freeze-Dried Dogs', size: '400g', cost: 8.50, formulation: { 'Beef': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DB-850': { name: 'Beef', category: 'Freeze-Dried Dogs', size: '850g', cost: 17.00, formulation: { 'Beef': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DL-400': { name: 'Lamb', category: 'Freeze-Dried Dogs', size: '400g', cost: 9.20, formulation: { 'Lamb': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DL-850': { name: 'Lamb', category: 'Freeze-Dried Dogs', size: '850g', cost: 18.40, formulation: { 'Lamb': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DC-400': { name: 'Chicken', category: 'Freeze-Dried Dogs', size: '400g', cost: 8.75, formulation: { 'Chicken': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DC-850': { name: 'Chicken', category: 'Freeze-Dried Dogs', size: '850g', cost: 17.50, formulation: { 'Chicken': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DT-400': { name: 'Turkey', category: 'Freeze-Dried Dogs', size: '400g', cost: 8.90, formulation: { 'Turkey': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DT-850': { name: 'Turkey', category: 'Freeze-Dried Dogs', size: '850g', cost: 17.80, formulation: { 'Turkey': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DK-400': { name: 'Kangaroo', category: 'Freeze-Dried Dogs', size: '400g', cost: 10.20, formulation: { 'Kangaroo': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DK-850': { name: 'Kangaroo', category: 'Freeze-Dried Dogs', size: '850g', cost: 20.40, formulation: { 'Kangaroo': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DS-400': { name: 'Salmon', category: 'Freeze-Dried Dogs', size: '400g', cost: 10.75, formulation: { 'Salmon': 0.35, 'Fish Oil': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DS-850': { name: 'Salmon', category: 'Freeze-Dried Dogs', size: '850g', cost: 21.50, formulation: { 'Salmon': 0.35, 'Fish Oil': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DR-400': { name: 'Rabbit', category: 'Freeze-Dried Dogs', size: '400g', cost: 11.20, formulation: { 'Rabbit': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DR-850': { name: 'Rabbit', category: 'Freeze-Dried Dogs', size: '850g', cost: 22.40, formulation: { 'Rabbit': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DMM-400': { name: 'Mix', category: 'Freeze-Dried Dogs', size: '400g', cost: 9.50, formulation: { 'Mixed Meats': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-DMM-850': { name: 'Mix', category: 'Freeze-Dried Dogs', size: '850g', cost: 19.00, formulation: { 'Mixed Meats': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CB-200': { name: 'Beef', category: 'Freeze-Dried Cats', size: '200g', cost: 5.50, formulation: { 'Beef': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CB-400': { name: 'Beef', category: 'Freeze-Dried Cats', size: '400g', cost: 8.50, formulation: { 'Beef': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CL-200': { name: 'Lamb', category: 'Freeze-Dried Cats', size: '200g', cost: 6.00, formulation: { 'Lamb': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CL-400': { name: 'Lamb', category: 'Freeze-Dried Cats', size: '400g', cost: 9.20, formulation: { 'Lamb': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CC-200': { name: 'Chicken', category: 'Freeze-Dried Cats', size: '200g', cost: 5.70, formulation: { 'Chicken': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CC-400': { name: 'Chicken', category: 'Freeze-Dried Cats', size: '400g', cost: 8.75, formulation: { 'Chicken': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CT-200': { name: 'Turkey', category: 'Freeze-Dried Cats', size: '200g', cost: 5.80, formulation: { 'Turkey': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CT-400': { name: 'Turkey', category: 'Freeze-Dried Cats', size: '400g', cost: 8.90, formulation: { 'Turkey': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CK-200': { name: 'Kangaroo', category: 'Freeze-Dried Cats', size: '200g', cost: 6.65, formulation: { 'Kangaroo': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CK-400': { name: 'Kangaroo', category: 'Freeze-Dried Cats', size: '400g', cost: 10.20, formulation: { 'Kangaroo': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CS-200': { name: 'Salmon', category: 'Freeze-Dried Cats', size: '200g', cost: 7.00, formulation: { 'Salmon': 0.35, 'Fish Oil': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CS-400': { name: 'Salmon', category: 'Freeze-Dried Cats', size: '400g', cost: 10.75, formulation: { 'Salmon': 0.35, 'Fish Oil': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CR-200': { name: 'Rabbit', category: 'Freeze-Dried Cats', size: '200g', cost: 7.30, formulation: { 'Rabbit': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CR-400': { name: 'Rabbit', category: 'Freeze-Dried Cats', size: '400g', cost: 11.20, formulation: { 'Rabbit': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CMM-200': { name: 'Mix', category: 'Freeze-Dried Cats', size: '200g', cost: 6.20, formulation: { 'Mixed Meats': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FD-CMM-400': { name: 'Mix', category: 'Freeze-Dried Cats', size: '400g', cost: 9.50, formulation: { 'Mixed Meats': 0.35, 'Organs': 0.05, 'Vegetables': 0.08, 'Packaging': 0.02 } },
-    'FM-DB-5lb': { name: 'Beef', category: 'Frozen Dogs', size: '5lb', cost: 45.00, formulation: { 'Beef': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-DB-10lb': { name: 'Beef', category: 'Frozen Dogs', size: '10lb', cost: 85.00, formulation: { 'Beef': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-DL-5lb': { name: 'Lamb', category: 'Frozen Dogs', size: '5lb', cost: 50.00, formulation: { 'Lamb': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-DL-10lb': { name: 'Lamb', category: 'Frozen Dogs', size: '10lb', cost: 95.00, formulation: { 'Lamb': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-DC-5lb': { name: 'Chicken', category: 'Frozen Dogs', size: '5lb', cost: 48.00, formulation: { 'Chicken': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-DC-10lb': { name: 'Chicken', category: 'Frozen Dogs', size: '10lb', cost: 90.00, formulation: { 'Chicken': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-DT-5lb': { name: 'Turkey', category: 'Frozen Dogs', size: '5lb', cost: 49.00, formulation: { 'Turkey': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-DT-10lb': { name: 'Turkey', category: 'Frozen Dogs', size: '10lb', cost: 92.00, formulation: { 'Turkey': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-DK-5lb': { name: 'Kangaroo', category: 'Frozen Dogs', size: '5lb', cost: 58.00, formulation: { 'Kangaroo': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-DK-10lb': { name: 'Kangaroo', category: 'Frozen Dogs', size: '10lb', cost: 108.00, formulation: { 'Kangaroo': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-CB-2lb': { name: 'Beef', category: 'Frozen Cats', size: '2lb', cost: 22.00, formulation: { 'Beef': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-CB-5lb': { name: 'Beef', category: 'Frozen Cats', size: '5lb', cost: 45.00, formulation: { 'Beef': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-CL-2lb': { name: 'Lamb', category: 'Frozen Cats', size: '2lb', cost: 24.00, formulation: { 'Lamb': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-CL-5lb': { name: 'Lamb', category: 'Frozen Cats', size: '5lb', cost: 50.00, formulation: { 'Lamb': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-CC-2lb': { name: 'Chicken', category: 'Frozen Cats', size: '2lb', cost: 23.00, formulation: { 'Chicken': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-CC-5lb': { name: 'Chicken', category: 'Frozen Cats', size: '5lb', cost: 48.00, formulation: { 'Chicken': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-CT-2lb': { name: 'Turkey', category: 'Frozen Cats', size: '2lb', cost: 23.50, formulation: { 'Turkey': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'FM-CT-5lb': { name: 'Turkey', category: 'Frozen Cats', size: '5lb', cost: 49.00, formulation: { 'Turkey': 0.40, 'Organs': 0.08, 'Vegetables': 0.10, 'Packaging': 0.05 } },
-    'TR-BEEF-100': { name: 'Beef Treats', category: 'Treats & Supplements', size: '100g', cost: 3.50, formulation: { 'Beef': 0.90, 'Packaging': 0.10 } },
-    'TR-LAMB-100': { name: 'Lamb Treats', category: 'Treats & Supplements', size: '100g', cost: 4.00, formulation: { 'Lamb': 0.90, 'Packaging': 0.10 } },
-    'TR-DUCK-100': { name: 'Duck Treats', category: 'Treats & Supplements', size: '100g', cost: 4.50, formulation: { 'Duck': 0.90, 'Packaging': 0.10 } },
-    'SUP-JT-60': { name: 'Joint Support', category: 'Treats & Supplements', size: '60g', cost: 12.50, formulation: { 'Supplements': 0.80, 'Carrier': 0.15, 'Packaging': 0.05 } },
-    'SUP-JT-150': { name: 'Joint Support', category: 'Treats & Supplements', size: '150g', cost: 28.00, formulation: { 'Supplements': 0.80, 'Carrier': 0.15, 'Packaging': 0.05 } },
-  };
+  const [products, setProducts] = useState(DEFAULT_PRODUCTS);
 
-  // Check if user is logged in
   useEffect(() => {
+    if (!auth) { setLoading(false); return; }
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
@@ -173,7 +179,7 @@ export default function Home() {
 
   // Save batch data to Firestore
   const saveBatchToFirestore = async (productId, batch) => {
-    if (!user) return;
+    if (!user || !db) return;
     try {
       const userDocRef = doc(db, 'users', user.uid);
       const newBatchData = { ...batchData, [productId]: batch };
