@@ -171,7 +171,25 @@ export default function Home() {
             setOverheadPerUnit(data.overheadPerUnit || 10);
           }
         } catch (error) {
-          console.error('Error loading data:', error);
+          console.error('Error loading user data:', error);
+        }
+        try {
+          const catalogRef = doc(db, 'shared', 'catalog');
+          const catalogSnap = await getDoc(catalogRef);
+          if (catalogSnap.exists()) {
+            const cat = catalogSnap.data();
+            if (cat.products) setProducts(cat.products);
+            if (cat.ingredientCosts) setIngredientCosts(cat.ingredientCosts);
+          } else {
+            await setDoc(catalogRef, {
+              products: DEFAULT_PRODUCTS,
+              ingredientCosts: DEFAULT_INGREDIENT_COSTS,
+              updatedAt: new Date().toISOString(),
+              updatedBy: currentUser.email,
+            });
+          }
+        } catch (error) {
+          console.error('Error loading catalog:', error);
         }
       }
       setLoading(false);
@@ -212,6 +230,20 @@ export default function Home() {
       setBatchData(newBatchData);
     } catch (error) {
       console.error('Error saving batch:', error);
+    }
+  };
+
+  const saveCatalogToFirestore = async (nextProducts, nextIngredientCosts) => {
+    if (!user || !db) return;
+    try {
+      await setDoc(doc(db, 'shared', 'catalog'), {
+        products: nextProducts,
+        ingredientCosts: nextIngredientCosts,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user.email,
+      });
+    } catch (error) {
+      console.error('Error saving catalog:', error);
     }
   };
 
@@ -409,14 +441,14 @@ export default function Home() {
       const name = ingName.trim();
       if (!name) return;
       const cost = parseFloat(ingCost) || 0;
-      setIngredientCosts(prev => ({ ...prev, [name]: cost }));
-      setProducts(prev => {
-        const next = { ...prev };
-        Object.entries(checkedProds).forEach(([id, on]) => {
-          if (on && next[id]) next[id] = { ...next[id], formulation: { ...next[id].formulation, [name]: 0 } };
-        });
-        return next;
+      const nextIngredients = { ...ingredientCosts, [name]: cost };
+      const nextProducts = { ...products };
+      Object.entries(checkedProds).forEach(([id, on]) => {
+        if (on && nextProducts[id]) nextProducts[id] = { ...nextProducts[id], formulation: { ...nextProducts[id].formulation, [name]: 0 } };
       });
+      setIngredientCosts(nextIngredients);
+      setProducts(nextProducts);
+      saveCatalogToFirestore(nextProducts, nextIngredients);
       setAddIngredientModal(false);
     };
 
@@ -485,9 +517,11 @@ export default function Home() {
       const sku = generateSku(form.name.trim(), form.category, form.size.trim(), products);
       const formulation = {};
       Object.entries(checkedIngredients).forEach(([ing, on]) => { if (on) formulation[ing] = 0; });
-      setProducts(prev => ({ ...prev, [sku]: { name: form.name.trim(), category: form.category, size: form.size.trim(), cost: 0, formulation } }));
+      const nextProducts = { ...products, [sku]: { name: form.name.trim(), category: form.category, size: form.size.trim(), cost: 0, formulation } };
+      setProducts(nextProducts);
       setRetailPrices(prev => ({ ...prev, [sku]: parseFloat(form.retailPrice) || 0 }));
       setWholesalePrices(prev => ({ ...prev, [sku]: parseFloat(form.wholesalePrice) || 0 }));
+      saveCatalogToFirestore(nextProducts, ingredientCosts);
       setAddProductModal(false);
     };
 
@@ -563,28 +597,26 @@ export default function Home() {
       const trimmed = name.trim();
       if (!trimmed) return;
       const newCost = parseFloat(cost) || 0;
-      setIngredientCosts(prev => {
-        const next = { ...prev };
-        if (trimmed !== oldName) delete next[oldName];
-        next[trimmed] = newCost;
-        return next;
-      });
+      const nextIngredients = { ...ingredientCosts };
+      if (trimmed !== oldName) delete nextIngredients[oldName];
+      nextIngredients[trimmed] = newCost;
+      let nextProducts = products;
       if (trimmed !== oldName) {
-        setProducts(prev => {
-          const next = {};
-          for (const [id, p] of Object.entries(prev)) {
-            if (p.formulation && oldName in p.formulation) {
-              const f = { ...p.formulation };
-              f[trimmed] = f[oldName];
-              delete f[oldName];
-              next[id] = { ...p, formulation: f };
-            } else {
-              next[id] = p;
-            }
+        nextProducts = {};
+        for (const [id, p] of Object.entries(products)) {
+          if (p.formulation && oldName in p.formulation) {
+            const f = { ...p.formulation };
+            f[trimmed] = f[oldName];
+            delete f[oldName];
+            nextProducts[id] = { ...p, formulation: f };
+          } else {
+            nextProducts[id] = p;
           }
-          return next;
-        });
+        }
       }
+      setIngredientCosts(nextIngredients);
+      setProducts(nextProducts);
+      saveCatalogToFirestore(nextProducts, nextIngredients);
       setEditIngredientModal(null);
     };
 
@@ -630,16 +662,9 @@ export default function Home() {
       if (!canSave) return;
       const newSku = generateSku(form.name.trim(), form.category, form.size.trim(), Object.fromEntries(Object.entries(products).filter(([k]) => k !== pid)));
       const updated = { ...p, name: form.name.trim(), category: form.category, size: form.size.trim() };
-      setProducts(prev => {
-        const next = { ...prev };
-        if (newSku !== pid) {
-          delete next[pid];
-          next[newSku] = updated;
-        } else {
-          next[pid] = updated;
-        }
-        return next;
-      });
+      const nextProducts = { ...products };
+      if (newSku !== pid) { delete nextProducts[pid]; nextProducts[newSku] = updated; } else { nextProducts[pid] = updated; }
+      setProducts(nextProducts);
       if (newSku !== pid) {
         setRetailPrices(prev => { const n = { ...prev }; n[newSku] = parseFloat(form.retailPrice) || 0; delete n[pid]; return n; });
         setWholesalePrices(prev => { const n = { ...prev }; n[newSku] = parseFloat(form.wholesalePrice) || 0; delete n[pid]; return n; });
@@ -648,6 +673,7 @@ export default function Home() {
         setRetailPrices(prev => ({ ...prev, [pid]: parseFloat(form.retailPrice) || 0 }));
         setWholesalePrices(prev => ({ ...prev, [pid]: parseFloat(form.wholesalePrice) || 0 }));
       }
+      saveCatalogToFirestore(nextProducts, ingredientCosts);
       setEditProductModal(null);
     };
 
@@ -762,7 +788,7 @@ export default function Home() {
 
             <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
               <button onClick={(e) => { e.stopPropagation(); setEditProductModal(id); }} style={{ flex: 1, padding: '8px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>Edit</button>
-              <button onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete "${species} ${product.size}"? This cannot be undone.`)) { setProducts(prev => { const n = { ...prev }; delete n[id]; return n; }); setRetailPrices(prev => { const n = { ...prev }; delete n[id]; return n; }); setWholesalePrices(prev => { const n = { ...prev }; delete n[id]; return n; }); setBatchData(prev => { const n = { ...prev }; delete n[id]; return n; }); setExpandedProduct(null); } }} style={{ flex: 1, padding: '8px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>Delete</button>
+              <button onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete "${species} ${product.size}"? This cannot be undone.`)) { const nextProducts = { ...products }; delete nextProducts[id]; setProducts(nextProducts); setRetailPrices(prev => { const n = { ...prev }; delete n[id]; return n; }); setWholesalePrices(prev => { const n = { ...prev }; delete n[id]; return n; }); setBatchData(prev => { const n = { ...prev }; delete n[id]; return n; }); saveCatalogToFirestore(nextProducts, ingredientCosts); setExpandedProduct(null); } }} style={{ flex: 1, padding: '8px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>Delete</button>
             </div>
             <button onClick={(e) => { e.stopPropagation(); setBatchModal(id); }} style={{ width: '100%', padding: '8px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>📊 Batch Costing</button>
           </div>
@@ -870,7 +896,7 @@ export default function Home() {
                     <label style={{ fontSize: '13px', fontWeight: '600' }}>{ingredient}</label>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button onClick={() => setEditIngredientModal({ oldName: ingredient, name: ingredient, cost })} style={{ padding: '3px 8px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>Edit</button>
-                      <button onClick={() => { const usedIn = Object.values(products).filter(p => p.formulation && ingredient in p.formulation).length; if (window.confirm(usedIn > 0 ? `"${ingredient}" is used in ${usedIn} product${usedIn > 1 ? 's' : ''} — remove from all?` : `Delete "${ingredient}"?`)) { setIngredientCosts(prev => { const n = { ...prev }; delete n[ingredient]; return n; }); setProducts(prev => { const n = {}; for (const [id, p] of Object.entries(prev)) { if (p.formulation && ingredient in p.formulation) { const f = { ...p.formulation }; delete f[ingredient]; n[id] = { ...p, formulation: f }; } else { n[id] = p; } } return n; }); } }} style={{ padding: '3px 8px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>Delete</button>
+                      <button onClick={() => { const usedIn = Object.values(products).filter(p => p.formulation && ingredient in p.formulation).length; if (window.confirm(usedIn > 0 ? `"${ingredient}" is used in ${usedIn} product${usedIn > 1 ? 's' : ''} — remove from all?` : `Delete "${ingredient}"?`)) { const nextIngredients = { ...ingredientCosts }; delete nextIngredients[ingredient]; const nextProducts = {}; for (const [id, p] of Object.entries(products)) { if (p.formulation && ingredient in p.formulation) { const f = { ...p.formulation }; delete f[ingredient]; nextProducts[id] = { ...p, formulation: f }; } else { nextProducts[id] = p; } } setIngredientCosts(nextIngredients); setProducts(nextProducts); saveCatalogToFirestore(nextProducts, nextIngredients); } }} style={{ padding: '3px 8px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>Delete</button>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
