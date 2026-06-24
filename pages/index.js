@@ -152,6 +152,8 @@ export default function Home() {
   const [products, setProducts] = useState(DEFAULT_PRODUCTS);
   const [addIngredientModal, setAddIngredientModal] = useState(false);
   const [addProductModal, setAddProductModal] = useState(false);
+  const [editIngredientModal, setEditIngredientModal] = useState(null); // { oldName, name, cost }
+  const [editProductModal, setEditProductModal] = useState(null); // productId
 
   useEffect(() => {
     if (!auth) { setLoading(false); return; }
@@ -552,6 +554,148 @@ export default function Home() {
     );
   };
 
+  const EditIngredientModal = () => {
+    const [name, setName] = useState(editIngredientModal.name);
+    const [cost, setCost] = useState(String(editIngredientModal.cost));
+    const oldName = editIngredientModal.oldName;
+
+    const handleSave = () => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      const newCost = parseFloat(cost) || 0;
+      setIngredientCosts(prev => {
+        const next = { ...prev };
+        if (trimmed !== oldName) delete next[oldName];
+        next[trimmed] = newCost;
+        return next;
+      });
+      if (trimmed !== oldName) {
+        setProducts(prev => {
+          const next = {};
+          for (const [id, p] of Object.entries(prev)) {
+            if (p.formulation && oldName in p.formulation) {
+              const f = { ...p.formulation };
+              f[trimmed] = f[oldName];
+              delete f[oldName];
+              next[id] = { ...p, formulation: f };
+            } else {
+              next[id] = p;
+            }
+          }
+          return next;
+        });
+      }
+      setEditIngredientModal(null);
+    };
+
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', maxWidth: '400px', width: '95%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>Edit Ingredient</h2>
+            <button onClick={() => setEditIngredientModal(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+          </div>
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>Name</label>
+            <input value={name} onChange={e => setName(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }} />
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>$/kg</label>
+            <input type="number" value={cost} onChange={e => setCost(e.target.value)} step="0.01" style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }} />
+          </div>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button onClick={() => setEditIngredientModal(null)} style={{ padding: '10px 16px', backgroundColor: '#ddd', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Cancel</button>
+            <button onClick={handleSave} disabled={!name.trim()} style={{ padding: '10px 16px', backgroundColor: name.trim() ? '#2563eb' : '#93c5fd', color: 'white', border: 'none', borderRadius: '6px', cursor: name.trim() ? 'pointer' : 'not-allowed', fontWeight: '600', fontSize: '13px' }}>Save</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const EditProductModal = () => {
+    const pid = editProductModal;
+    const p = products[pid];
+    const [form, setForm] = useState({
+      name: p.name || pid,
+      category: p.category,
+      size: p.size,
+      retailPrice: String(retailPrices[pid] || ''),
+      wholesalePrice: String(wholesalePrices[pid] || ''),
+    });
+    const f = v => setForm(prev => ({ ...prev, ...v }));
+    const categories = [...new Set(Object.values(products).map(p => p.category))];
+    const canSave = form.name.trim() && form.size.trim();
+
+    const handleSave = () => {
+      if (!canSave) return;
+      const newSku = generateSku(form.name.trim(), form.category, form.size.trim(), Object.fromEntries(Object.entries(products).filter(([k]) => k !== pid)));
+      const updated = { ...p, name: form.name.trim(), category: form.category, size: form.size.trim() };
+      setProducts(prev => {
+        const next = { ...prev };
+        if (newSku !== pid) {
+          delete next[pid];
+          next[newSku] = updated;
+        } else {
+          next[pid] = updated;
+        }
+        return next;
+      });
+      if (newSku !== pid) {
+        setRetailPrices(prev => { const n = { ...prev }; n[newSku] = parseFloat(form.retailPrice) || 0; delete n[pid]; return n; });
+        setWholesalePrices(prev => { const n = { ...prev }; n[newSku] = parseFloat(form.wholesalePrice) || 0; delete n[pid]; return n; });
+        setBatchData(prev => { const n = { ...prev }; if (n[pid]) { n[newSku] = n[pid]; delete n[pid]; } return n; });
+      } else {
+        setRetailPrices(prev => ({ ...prev, [pid]: parseFloat(form.retailPrice) || 0 }));
+        setWholesalePrices(prev => ({ ...prev, [pid]: parseFloat(form.wholesalePrice) || 0 }));
+      }
+      setEditProductModal(null);
+    };
+
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', maxWidth: '500px', width: '95%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>Edit Product</h2>
+            <button onClick={() => setEditProductModal(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>Product Name</label>
+              <input value={form.name} onChange={e => f({ name: e.target.value })} style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>Category</label>
+              <select value={form.category} onChange={e => f({ category: e.target.value })} style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}>
+                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>Size</label>
+              <input value={form.size} onChange={e => f({ size: e.target.value })} style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>Retail Price ($)</label>
+              <input type="number" value={form.retailPrice} onChange={e => f({ retailPrice: e.target.value })} step="0.01" style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>Wholesale Price ($)</label>
+              <input type="number" value={form.wholesalePrice} onChange={e => f({ wholesalePrice: e.target.value })} step="0.01" style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }} />
+            </div>
+          </div>
+          {form.name.trim() && form.size.trim() && (
+            <div style={{ marginBottom: '16px', padding: '8px 12px', backgroundColor: '#f0f9ff', borderRadius: '6px', fontSize: '12px', color: '#1e40af' }}>
+              New SKU: <strong>{generateSku(form.name.trim(), form.category, form.size.trim(), Object.fromEntries(Object.entries(products).filter(([k]) => k !== pid)))}</strong>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button onClick={() => setEditProductModal(null)} style={{ padding: '10px 16px', backgroundColor: '#ddd', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Cancel</button>
+            <button onClick={handleSave} disabled={!canSave} style={{ padding: '10px 16px', backgroundColor: canSave ? '#2563eb' : '#93c5fd', color: 'white', border: 'none', borderRadius: '6px', cursor: canSave ? 'pointer' : 'not-allowed', fontWeight: '600', fontSize: '13px' }}>Save Product</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const ProductItem = ({ id, species, product }) => {
     const isExpanded = expandedProduct === id;
     const standardCosts = calculateTotalCost(product.cost);
@@ -616,6 +760,10 @@ export default function Home() {
               </div>
             </div>
 
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              <button onClick={(e) => { e.stopPropagation(); setEditProductModal(id); }} style={{ flex: 1, padding: '8px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>Edit</button>
+              <button onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete "${species} ${product.size}"? This cannot be undone.`)) { setProducts(prev => { const n = { ...prev }; delete n[id]; return n; }); setRetailPrices(prev => { const n = { ...prev }; delete n[id]; return n; }); setWholesalePrices(prev => { const n = { ...prev }; delete n[id]; return n; }); setBatchData(prev => { const n = { ...prev }; delete n[id]; return n; }); setExpandedProduct(null); } }} style={{ flex: 1, padding: '8px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>Delete</button>
+            </div>
             <button onClick={(e) => { e.stopPropagation(); setBatchModal(id); }} style={{ width: '100%', padding: '8px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>📊 Batch Costing</button>
           </div>
         )}
@@ -718,7 +866,13 @@ export default function Home() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               {Object.entries(ingredientCosts).map(([ingredient, cost]) => (
                 <div key={ingredient} style={{ backgroundColor: '#fff', padding: '16px', borderRadius: '8px', border: '1px solid #ddd' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>{ingredient}</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: '600' }}>{ingredient}</label>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => setEditIngredientModal({ oldName: ingredient, name: ingredient, cost })} style={{ padding: '3px 8px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>Edit</button>
+                      <button onClick={() => { const usedIn = Object.values(products).filter(p => p.formulation && ingredient in p.formulation).length; if (window.confirm(usedIn > 0 ? `"${ingredient}" is used in ${usedIn} product${usedIn > 1 ? 's' : ''} — remove from all?` : `Delete "${ingredient}"?`)) { setIngredientCosts(prev => { const n = { ...prev }; delete n[ingredient]; return n; }); setProducts(prev => { const n = {}; for (const [id, p] of Object.entries(prev)) { if (p.formulation && ingredient in p.formulation) { const f = { ...p.formulation }; delete f[ingredient]; n[id] = { ...p, formulation: f }; } else { n[id] = p; } } return n; }); } }} style={{ padding: '3px 8px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>Delete</button>
+                    </div>
+                  </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '12px', color: '#666' }}>$/kg</span>
                     <input type="number" value={cost} onChange={(e) => setIngredientCosts({ ...ingredientCosts, [ingredient]: parseFloat(e.target.value) || 0 })} step="0.01" style={{ flex: 1, padding: '6px 8px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }} />
@@ -748,6 +902,8 @@ export default function Home() {
       {batchModal && <BatchModal productId={batchModal} product={products[batchModal]} />}
       {addIngredientModal && <AddIngredientModal />}
       {addProductModal && <AddProductModal />}
+      {editIngredientModal && <EditIngredientModal />}
+      {editProductModal && products[editProductModal] && <EditProductModal />}
     </div>
   );
 }
